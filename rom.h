@@ -2,7 +2,6 @@
 
 #include<cstdint>
 
-
 struct Rom
 {
     // PRG-ROM

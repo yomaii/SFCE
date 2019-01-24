@@ -1,4 +1,6 @@
-enum ErrorCode {
+#pragma once
+
+enum errorCode {
     ERROR_OK = 0,
     ERROR_FAILED,
     ERROR_FILE_NOT_EXIST,
