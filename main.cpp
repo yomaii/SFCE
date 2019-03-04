@@ -21,5 +21,18 @@ int main() {
         "ROM: NMI: $%04X  RESET: $%04X  IRQ/BRK: $%04X\n",
         (int)v0, (int)v1, (int)v2
     );
+    char b0[DISASSEMBLY_BUF_LEN2], b1[DISASSEMBLY_BUF_LEN2], b2[DISASSEMBLY_BUF_LEN2];
+    cpu.disassemblyPos(v0, b0);
+    cpu.disassemblyPos(v1, b1);
+    cpu.disassemblyPos(v2, b2);
+    printf(
+        "NMI:     %s\n"
+        "RESET:   %s\n"
+        "IRQ/BRK: %s\n",
+        b0, b1, b2
+    );
+    while(1){
+        cpu.executeOne();
+    }
     return 0;
 }

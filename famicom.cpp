@@ -73,7 +73,22 @@ errorCode Famicom::resetMapper_00(){
     return ERROR_OK;
 }
 errorCode Famicom::reset(){
-    return resetMapper_00();
+    errorCode code =  resetMapper_00();
+    if(code) return code;
+    Cpu cpu(*this);
+    const uint8_t pcl = cpu.read(cpuVector::RESET + 0);
+    const uint8_t pch = cpu.read(cpuVector::RESET + 1);
+    registers.programCounter = (uint16_t)pcl | (uint16_t)pch << 8;
+    registers.accumulator = 0;
+    registers.xIndex = 0;
+    registers.yIndex = 0;
+    registers.stackPointer = 0xfd;
+    registers.status = 0x34 | FLAG_R;
+#if 1
+    // 测试指令ROM(nestest.nes)
+    registers.programCounter = 0xC000;
+#endif
+    return errorCode::ERROR_OK;
 }
 void Famicom::showInfo(){
     cout << "rom loaded:" << loaded << endl;
