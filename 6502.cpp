@@ -250,12 +250,6 @@ void Operation::JSR(uint16_t address){
     PUSH(uint8_t(REG_PC & 0XFF));
     REG_PC = address;
 }
-void Operation::LAX(uint16_t address){
-    // Load A and X
-    REG_A = read(address);
-    REG_X = REG_A;
-    CHECK_ZSFLAG(REG_A);
-}
 void Operation::LDA(uint16_t address){
     // Load A
     REG_A = read(address);
@@ -433,5 +427,105 @@ void Operation::RORA(uint16_t address){
     REG_CF_IF(result16 & 1);
     result16 >>= 1;
     REG_A = (uint8_t)result16;
+    CHECK_ZSFLAG(REG_A);
+}
+
+
+void Operation::DCP(uint16_t address){
+    // Decrement memory then Compare with A 
+    // DEC + CMP
+    uint8_t temp = read(address);
+    temp--;
+    write(address, temp);
+    CHECK_ZSFLAG(temp);
+
+    const uint16_t res = (uint16_t)REG_A - (uint16_t)read(address);
+    REG_CF_IF(!(res & (uint16_t)0x8000));
+    CHECK_ZSFLAG((uint8_t)res);
+}
+void Operation::LAX(uint16_t address){
+    // Load 'A' then Transfer X
+    REG_A = read(address);
+    REG_X = REG_A;
+    CHECK_ZSFLAG(REG_A);
+}
+void Operation::SAX(uint16_t address){
+    // Store A 'And' X
+    write(address, REG_A & REG_X);
+}
+void Operation::ISB(uint16_t address){
+    // Increment memory then Subtract with Carry
+    // INC + SBC
+    uint8_t temp = read(address);
+    temp++;
+    write(address, temp);
+    CHECK_ZSFLAG(temp);
+
+    const uint8_t src = read(address);
+    const uint16_t res16 = (uint16_t)REG_A - (uint16_t)src - (REG_CF ? 0 : 1);
+    REG_CF_IF(!(res16 >> 8));
+    const uint8_t res8 = (uint8_t)res16;
+    REG_VF_IF(((REG_A ^ src) & 0x80) && ((REG_A ^ res8) & 0x80));
+    REG_A = res8;
+    CHECK_ZSFLAG(REG_A);
+}
+void Operation::ISC(uint16_t address){
+    // Same with ISB
+    // INC + SBC
+    ISB(address);
+}
+void Operation::SLO(uint16_t address){
+    // Shift Left then 'Or'
+    // ASL + ORA
+    uint8_t temp = read(address);
+    REG_CF_IF(temp >> 7);
+    temp <<= 1;
+    write(address, temp);
+    CHECK_ZSFLAG(temp);
+
+    REG_A |= read(address);
+    CHECK_ZSFLAG(REG_A);
+}
+void Operation::RLA(uint16_t address){
+    // Rotate Left then 'And'
+    // ROL + AND
+    uint16_t result16 = read(address);
+    result16 <<= 1;
+    result16 |= ((uint16_t)REG_CF) >> (statusIndex::INDEX_C);
+    REG_CF_IF(result16 & (uint16_t)0x100);
+    write(address, (uint8_t)result16);
+    CHECK_ZSFLAG((uint8_t)result16);
+
+    REG_A &= read(address);
+    CHECK_ZSFLAG(REG_A);
+}
+void Operation::SRE(uint16_t address){
+    // Shift Right then "Exclusive-Or"
+    // LSR + EOR
+    uint8_t temp = read(address);
+    REG_CF_IF(temp & 1);
+    temp >>= 1;
+    write(address, temp);
+    CHECK_ZSFLAG(temp);
+
+    REG_A ^= read(address);
+    CHECK_ZSFLAG(REG_A);
+}
+void Operation::RRA(uint16_t address){
+    // Rotate Right then Add with Carry
+    // ROR + ADC
+    uint16_t result16 = read(address);
+    result16 |= ((uint16_t)REG_CF) << (8 - statusIndex::INDEX_C);
+    REG_CF_IF(result16 & 1);
+    result16 >>= 1;
+    write(address, (uint8_t)result16);
+    CHECK_ZSFLAG((uint8_t)result16);
+
+    const uint8_t src = read(address);
+    const uint16_t res16 = (uint16_t)REG_A + (uint16_t)src + (REG_CF ? 1 : 0);
+    REG_CF_IF(res16 >> 8);
+    const uint8_t res8 = (uint8_t)res16;
+    REG_VF_IF(!((REG_A ^ src) & 0x80) && ((REG_A ^ res8) & 0x80));
+    REG_A = res8;
     CHECK_ZSFLAG(REG_A);
 }

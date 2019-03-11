@@ -52,7 +52,6 @@ public:
     void INX(uint16_t);
     void JMP(uint16_t);
     void JSR(uint16_t);
-    void LAX(uint16_t);
     void LDA(uint16_t);
     void LDX(uint16_t);
     void LDY(uint16_t);
@@ -85,6 +84,20 @@ public:
     void LSRA(uint16_t);
     void ROLA(uint16_t);
     void RORA(uint16_t);
+
+    void ALR(uint16_t);
+    void ANC(uint16_t);
+    void ARR(uint16_t);
+    void AXS(uint16_t);
+    void LAX(uint16_t);
+    void SAX(uint16_t);
+    void DCP(uint16_t);
+    void ISB(uint16_t);
+    void ISC(uint16_t);
+    void RLA(uint16_t);
+    void RRA(uint16_t);
+    void SLO(uint16_t);
+    void SRE(uint16_t);
 };
 
 
