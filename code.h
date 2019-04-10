@@ -201,7 +201,7 @@ static const OpName OPNAMEDATA[256] = {
     { 'S', 'A', 'X', AM_ZPG },
     { 'D', 'E', 'Y', AM_IMP },
     { 'N', 'O', 'P', AM_IMM },
-    { 'T', 'A', 'X', AM_IMP },
+    { 'T', 'X', 'A', AM_IMP },
     { 'X', 'X', 'A', AM_IMM },
     { 'S', 'T', 'Y', AM_ABS },
     { 'S', 'T', 'A', AM_ABS },

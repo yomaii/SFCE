@@ -1,8 +1,8 @@
 #pragma once
 
-#include "rom.h"
-#include "code.h"
 #include <cstdint>
+#include "code.h"
+
 
 // 状态寄存器标记
 enum statusIndex {
@@ -66,12 +66,17 @@ public:
     Cpu(Famicom&);
     uint8_t read(uint16_t);
     void write(uint16_t, uint8_t);
+    uint8_t readPPU(uint16_t);
+    void writePPU(uint16_t, uint8_t);
+    uint8_t read4020(uint16_t);
+    void write4020(uint16_t, uint8_t);
     void disassemblyPos(uint16_t, char*);
     void disassembly(Code6502, char*);
     void btoh(char[],uint8_t);
     void btod(char[],uint8_t);
     void executeOne();
     void log();
+    void NMI();
 };
 
 

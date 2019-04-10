@@ -30,11 +30,11 @@ uint8_t Cpu::read(uint16_t address){
         return famicom->mainMemory[address & (uint16_t)0x07ff];
     case 1:
         // [$2000,$4000) not suported yet
-        assert(!"NOT IMPL");
-        return 0;
+        return readPPU(address);
     case 2:
         // [$4000,$6000) not suported yet
-        assert(!"NOT IMPL");
+        if (address < 0x4020) return read4020(address);
+        else assert(!"NOT IMPL");
         return 0;
     case 3:
         // [$6000,$8000) SRAM
@@ -56,11 +56,12 @@ void Cpu::write(uint16_t address, uint8_t data){
         return;
     case 1:
         // [$2000,$4000) not suported yet
-        assert(!"NOT IMPL");
+        writePPU(address, data);
         return;
     case 2:
         // [$4000,$6000) not suported yet
-        assert(!"NOT IMPL");
+        if (address < 0x4020) write4020(address, data);
+        else assert(!"NOT IMPL");
         return;
     case 3:
         // [$6000,$8000) SRAM
@@ -75,7 +76,122 @@ void Cpu::write(uint16_t address, uint8_t data){
         assert(!"invalid address");
     }
 }
-
+uint8_t Cpu::readPPU(uint16_t address){
+    uint8_t data = 0x00;
+    PPU* ppu = &famicom->ppu;
+    switch (address & (uint16_t)0x7){
+    // address last 3 bits
+    case 0:
+        // 0x2000: Controller ($2000) > write only
+    case 1:
+        // 0x2001: Mask ($2001) > write only
+        assert(!"write only!");
+        break;
+    case 2:
+        // 0x2002: Status ($2002) < read only
+        data = ppu->status;
+        // clear VBlank
+        ppu->status &= ~(uint8_t)PPU2002_VBlank;
+        break;
+    case 3:
+        // 0x2003: OAM address port ($2003) > write only
+        assert(!"write only!");
+        break;
+    case 4:
+        // 0x2004: OAM data ($2004) <> read/write
+        data = ppu->sprites[ppu->oamaddr++];
+        break;
+    case 5:
+        // 0x2005: Scroll ($2005) >> write x2
+    case 6:
+        // 0x2006: Address ($2006) >> write x2
+        assert(!"write only!");
+        break;
+    case 7:
+        // 0x2007: Data ($2007) <> read/write
+        data = famicom->readPPU(ppu->vramaddr);
+        ppu->vramaddr += (uint16_t)((ppu->ctrl & PPU2000_VINC32) ? 32 : 1);
+        break;
+    }
+    return data;
+}
+void Cpu::writePPU(uint16_t address, uint8_t data){
+    PPU* ppu = &famicom->ppu;
+    switch (address & (uint16_t)0x7){
+    // address last 3 bits
+    case 0:
+        // 0x2000: Controller ($2000) > write only
+        ppu->ctrl = data;
+        break;
+    case 1:
+        // 0x2001: Mask ($2001) > write only
+        ppu->mask = data;
+        break;
+    case 2:
+        // 0x2002: Status ($2002) < read only
+        assert(!"read only!");
+        break;
+    case 3:
+        // 0x2003: OAM address port ($2003) > write only
+        ppu->oamaddr = data;
+        break;
+    case 4:
+        // 0x2004: OAM data ($2004) <> read/write
+        ppu->sprites[ppu->oamaddr++] = data;
+        break;
+    case 5:
+        // 0x2005: Scroll ($2005) >> write x2
+        ppu->scroll[ppu->writex2 & 1] = data;
+        ++ppu->writex2;
+        break;
+    case 6:
+        // 0x2006: Address ($2006) >> write x2
+        // 写入高字节
+        if (ppu->writex2 & 1) {
+            ppu->vramaddr = (ppu->vramaddr & (uint16_t)0xFF00) | (uint16_t)data;
+        }
+        // 写入低字节
+        else {
+            ppu->vramaddr = (ppu->vramaddr & (uint16_t)0x00FF) | ((uint16_t)data << 8);
+        }
+        ++ppu->writex2;
+        break;
+    case 7:
+        // 0x2007: Data ($2007) <> read/write
+        famicom->writePPU(ppu->vramaddr, data);
+        ppu->vramaddr += (uint16_t)((ppu->ctrl & PPU2000_VINC32) ? 32 : 1);
+        break;
+    }
+}
+uint8_t Cpu::read4020(uint16_t address){
+    uint8_t data = 0;
+    switch (address & (uint16_t)0x1f)
+    {
+    case 0x16:
+        // controller#1
+        data = (famicom->controllerStates+0)[famicom->controller1 & famicom->controllerStatusMask];
+        ++famicom->controller1;
+        break;
+    case 0x17:
+        // controller#2
+        data = (famicom->controllerStates+8)[famicom->controller2 & famicom->controllerStatusMask];
+        ++famicom->controller2;
+        break;
+    }
+    return data;
+}
+void Cpu::write4020(uint16_t address, uint8_t data){
+    switch (address & (uint16_t)0x1f)
+    {
+    case 0x16:
+        famicom->controllerStatusMask = (data & 1) ? 0x0 : 0x7;
+        if (data & 1) {
+            famicom->controller1 = 0;
+            famicom->controller2 = 0;
+        }
+        break;
+    }
+}
 void Cpu::disassemblyPos(uint16_t address, char* buf){
     enum {
         OFFSET_M = DISASSEMBLY_BUF_LEN2 - DISASSEMBLY_BUF_LEN,
@@ -225,11 +341,10 @@ void Cpu::disassembly(Code6502 code, char* buf){
 case 0x##n:\
 {           \
     const uint16_t address = addressing.a();\
-    printf("address: %X OP: %X\n", address, opcode);\
     operation.o(address);\
     break;\
 }
-
+    //printf("address: %X OP: %X\n", address, opcode);
 void Cpu::log(){
     static int line = 0;
     line++;
@@ -250,7 +365,7 @@ void Cpu::log(){
 
 
 void Cpu::executeOne(){
-    log();
+    //log();
     const uint8_t opcode = read(REG_PC++);
     Addressing addressing(famicom);
     Operation operation(famicom);
@@ -486,4 +601,14 @@ void Cpu::executeOne(){
     }
     
 }
-
+void Cpu::NMI(){
+    const uint8_t pch = (uint8_t)((REG_PC) >> 8);
+    const uint8_t pcl = (uint8_t)REG_PC;
+    PUSH(pch);
+    PUSH(pcl);
+    PUSH(REG_P | (uint8_t)(FLAG_R));
+    REG_IF_SE;
+    const uint8_t pcl2 = read(cpuVector::NMI + 0);
+    const uint8_t pch2 = read(cpuVector::NMI + 1);
+    famicom->registers.programCounter = (uint16_t)pcl2 | (uint16_t)pch2 << 8;
+}
