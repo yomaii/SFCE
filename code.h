@@ -1,30 +1,41 @@
+/*
+status codes
+*/
 #pragma once
 
-enum errorCode {
+/* error codes */
+enum
+{
     ERROR_OK = 0,
-    ERROR_FAILED,
+    ERROR_FILED,
     ERROR_FILE_NOT_EXIST,
     ERROR_ILLEGAL_FILE,
     ERROR_OUT_OF_MEMORY
 };
 
-// ROM control byte #1
-enum {
-    NES_VMIRROR = 0x01, 
-    NES_SAVERAM = 0x02,
-    NES_TRAINER = 0x04,
-    NES_4SCREEN = 0x08
+/* ROM control byte #1 */
+enum
+{
+    ROM_VMIRROR = 0x01, 
+    ROM_SAVERAM = 0x02,
+    ROM_TRAINER = 0x04,
+    ROM_4SCREEN = 0x08
 };
 
-// ROM control byte #2
-enum { 
-    NES_VS_UNISYSTEM  = 0x01,
-    NES_Playchoice10 = 0x02
+/* ROM control byte #2 */
+enum
+{
+    ROM_VS_UNISYSTEM  = 0x01,
+    ROM_Playchoice10 = 0x02
 };
 
-union Code6502{
+/* 6502 Disassembly codes  */
+
+union Code6502
+{
     uint32_t data;
-    struct{
+    struct
+    {
         uint8_t op;
         uint8_t a1;
         uint8_t a2;
@@ -32,11 +43,14 @@ union Code6502{
     };
 
 };
-struct OpName {
+
+struct OpName
+{
     char        name[3];
     uint8_t     mode;
 };
-enum{
+enum
+{
     AM_UNK = 0,     // 未知寻址
     AM_ACC,         // 累加器寻址: Op Accumulator
     AM_IMP,         // 隐含 寻址: Implied    Addressing
@@ -52,7 +66,6 @@ enum{
     AM_IND,         // 间接 寻址: Indirect   Addressing
     AM_REL,         // 相对 寻址: Relative   Addressing
 };
-
 static const char HEXDATA[] = "0123456789ABCDEF";
 static const OpName OPNAMEDATA[256] = {
     { 'B', 'R', 'K', AM_IMP },

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SFCE_FAMICOM_H_
+#define SFCE_FAMICOM_H_
 #include <cstdint>
 #include <string>
 #include "code.h"
@@ -27,16 +28,8 @@ struct Rom
     uint8_t     reserved[4];
 };
 
-struct NesHeader{
-    uint32_t    id;
-    uint8_t     count_16k;
-    uint8_t     count_8k;
-    uint8_t     flag6;
-    uint8_t     flag7;
-    uint8_t     reserved[8];
-};
-
-struct PPU{
+struct PPU
+{
     uint8_t* banks[0x4000 / 0x0400];
     uint16_t vramaddr;
     uint8_t  ctrl;
@@ -49,7 +42,9 @@ struct PPU{
     uint8_t  spindexes[0x20];
     uint8_t  sprites[0x100];
 };
-enum PPU_FLAG {
+// ppu flag
+enum
+{
     PPU2000_NMIGen  = 0x80, // [0x2000]VBlank期间是否产生NMI
     PPU2000_Sp8x16  = 0x20, // [0x2000]精灵为8x16(1), 还是8x8(0)
     PPU2000_BgTabl  = 0x10, // [0x2000]背景调色板表地址$1000(1), $0000(0)
@@ -64,40 +59,53 @@ enum PPU_FLAG {
 class Famicom
 {
 private:
-    Rom rom;
-    bool loaded = false;
-    cpuRegister registers;
+    /* physical parts */
+    Rom rom_;
     
-    uint8_t*   prgBanks[0x10000 >> 13];
-    uint8_t    saveMemory[8 * 1024];
-    uint8_t    videoMemory[2 * 1024];
-    uint8_t    videoMemoryEX[2 * 1024];
-    uint8_t    mainMemory[2 * 1024];
+    uint8_t*   prg_banks_[0x10000 >> 13];
+    uint8_t    save_memory_[8 * 1024];
+    uint8_t    video_memory_[2 * 1024];
+    uint8_t    video_memory_ex_[2 * 1024];
+    uint8_t    main_memory_[2 * 1024];
 
-    uint16_t controller1;
-    uint16_t controller2;
-    uint16_t controllerStatusMask;
-    uint8_t  controllerStates[16];
+    /* registers and status */
+    bool loaded_ = false;
+    CpuRegister registers_;
+    uint16_t controller1_;
+    uint16_t controller2_;
+    uint16_t controller_status_mask_;
+    uint8_t  controller_states_[16];
 
+    /* set friend class */
     friend class Cpu;
     friend class Addressing;
     friend class Operation;
-    friend void userInput(int index, unsigned char data);
+    friend void UserInput(int index, unsigned char data);
 public:
-    PPU ppu;
-    errorCode init(string);
-    errorCode load(string);
-    errorCode resetMapper_00();
-    errorCode reset();
-    void loadProgram8k(int, int);
-    void loadChrrom1k(int, int);
-    void showInfo();
-    void release();
-    uint8_t readPPU(uint16_t);
-    void writePPU(uint16_t, uint8_t);
+    Cpu *cpu_;
+    PPU ppu_;
+    int Init(string romfile);
+    int LoadRom(string romfile);
+    void ShowInfo();
+    void LoadProgram8k(int des, int src);
+    void LoadChrrom1k(int des, int src);
+    int Reset();
+    int ResetMapper00();
+    void SetupNametableBank();
+    uint8_t ReadPPU(uint16_t);
+    void WritePPU(uint16_t, uint8_t);
     void sVblank();
     void eVblank();
-
-    void setupNametableBank();
 };
 
+struct NesHeader{
+    uint32_t    id;
+    uint8_t     count_16k;
+    uint8_t     count_8k;
+    uint8_t     flag6;
+    uint8_t     flag7;
+    uint8_t     reserved[8];
+};
+
+
+#endif
