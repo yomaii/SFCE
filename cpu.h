@@ -1,11 +1,14 @@
-#pragma once
+#ifndef SFCE_CPU_H_
+#define SFCE_CPU_H_
 
-#include "rom.h"
-#include "code.h"
 #include <cstdint>
-
-// 状态寄存器标记
-enum statusIndex {
+#include <string>
+#include <iostream>
+#include "code.h"
+using std::string;
+// status index
+enum
+{
     INDEX_C = 0,
     INDEX_Z = 1,
     INDEX_I = 2,
@@ -16,19 +19,22 @@ enum statusIndex {
     INDEX_S = 7,
     INDEX_N = INDEX_S,
 };
-enum statusFlag {
+
+// status flag
+enum
+{
     FLAG_C = 1 << 0,    // 进位标记(Carry flag)
     FLAG_Z = 1 << 1,    // 零标记 (Zero flag)
     FLAG_I = 1 << 2,    // 禁止中断(Irq disabled flag)
     FLAG_D = 1 << 3,    // 十进制模式(Decimal mode flag)
     FLAG_B = 1 << 4,    // 软件中断(BRK flag)
-    FLAG_R = 1 << 5,    // 保留标记(Reserved), 一直为1
+    FLAG_R = 1 << 5,    // 保留标记(Reserved), should be keep 1
     FLAG_V = 1 << 6,    // 溢出标记(Overflow  flag)
     FLAG_S = 1 << 7,    // 符号标记(Sign flag)
-    FLAG_N = FLAG_S,    // 又叫(Negative Flag)
+    FLAG_N = FLAG_S,    // (Negative Flag)
 };
 
-struct cpuRegister{
+struct CpuRegister{
     // 指令计数器 Program Counter
     uint16_t    programCounter;
     // 状态寄存器 Status Register
@@ -43,39 +49,40 @@ struct cpuRegister{
     uint8_t     stackPointer;
     // 保留对齐用
     uint8_t     unused;
-} ;
+};
+// cpu vector
+enum
+{
+    CPU_NMI     = 0xFFFA,
+    CPU_RESET   = 0xFFFC,
+    CPU_IRQBRK  = 0xFFFE
+};
 
-enum cpuVector{
-    NMI     = 0xFFFA,
-    RESET   = 0xFFFC,
-    IRQBRK  = 0xFFFE
-};
-enum{
-    DISASSEMBLY_BUF_LEN = 32,
-    DISASSEMBLY_BUF_LEN2 = 48
-};
 class Famicom;
+
 class Cpu
 {
 private:
-    Famicom* famicom;
+    Famicom* famicom_;
     friend class Addressing;
     friend class Operation;
     Cpu();
 public:
     Cpu(Famicom&);
-    uint8_t read(uint16_t);
-    void write(uint16_t, uint8_t);
-    void disassemblyPos(uint16_t, char*);
-    void disassembly(Code6502, char*);
-    void btoh(char[],uint8_t);
-    void btod(char[],uint8_t);
-    void executeOne();
-    void log();
+    uint8_t Read(uint16_t);
+    void Write(uint16_t, uint8_t);
+    uint8_t ReadPPU(uint16_t);
+    void WritePPU(uint16_t, uint8_t);
+    uint8_t Read4020(uint16_t);
+    void Write4020(uint16_t, uint8_t);
+    string Disassembly(uint16_t address);
+    string btoh(uint8_t);
+    string btod(uint8_t);
+    void ExecuteOne();
+    void Log();
+    void NMI();
 };
-
-
-#define REG (famicom->registers)
+#define REG (famicom_->registers_)
 #define REG_PC (REG.programCounter)
 #define REG_SP (REG.stackPointer)
 #define REG_A (REG.accumulator)
@@ -121,13 +128,10 @@ public:
 #define REG_SF_IF(x) (x ? REG_SF_SE : REG_SF_CL);
 #define REG_NF_IF(x) (x ? REG_NF_SE : REG_NF_CL);
 
-#define PUSH(a) (famicom->mainMemory + 0x100)[REG_SP--] = a;
-#define POP() (famicom->mainMemory + 0x100)[++REG_SP];
+#define PUSH(a) (famicom_->main_memory_ + 0x100)[REG_SP--] = a;
+#define POP() (famicom_->main_memory_ + 0x100)[++REG_SP];
 #define CHECK_ZSFLAG(x) { REG_SF_IF(x & (uint8_t)0x80); REG_ZF_IF(x == 0); }
 
 #include "famicom.h"
 #include "6502.h"
-
-
-
-
+#endif

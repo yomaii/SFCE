@@ -1,10 +1,10 @@
 #include "6502.h"
 
 Addressing::Addressing(Famicom* fa){
-    famicom = fa;
+    famicom_ = fa;
 }
 Operation::Operation(Famicom* fa){
-    famicom = fa;
+    famicom_ = fa;
 }
 
 // Addressing
@@ -28,8 +28,8 @@ uint16_t Addressing::IMM(){
 uint16_t Addressing::ABS(){
     // Absolute Addressing
     // 绝对寻址
-    const uint8_t address0 = read(REG_PC++);
-    const uint8_t address1 = read(REG_PC++);
+    const uint8_t address0 = Read(REG_PC++);
+    const uint8_t address1 = Read(REG_PC++);
     return (uint16_t) address0 | (uint16_t) ((uint16_t) address1 << 8);
 }
 uint16_t Addressing::ABX(){
@@ -47,7 +47,7 @@ uint16_t Addressing::ABY(){
 uint16_t Addressing::ZPG(){
     // Zero-Page  Addressing
     // 零页寻址
-    const uint8_t address = read(REG_PC++);
+    const uint8_t address = Read(REG_PC++);
     return (uint16_t) address;
 }
 uint16_t Addressing::ZPX(){
@@ -68,28 +68,28 @@ uint16_t Addressing::IND(){
     uint16_t temp1 = ABS();
     // BUG
     uint16_t temp2 = (temp1 & 0xFF00) | ((temp1+1) & 0x00FF);
-    return (uint16_t) read(temp1) | (uint16_t) ((uint16_t) read(temp2) << 8);
+    return (uint16_t) Read(temp1) | (uint16_t) ((uint16_t) Read(temp2) << 8);
 }
 uint16_t Addressing::INX(){
     // Pre-indexed Indirect Addressing
     // 间接X变址
-    uint8_t base = read(REG_PC++) + REG_X;
-    const uint8_t address0 = read(base++);
-    const uint8_t address1 = read(base++);
+    uint8_t base = Read(REG_PC++) + REG_X;
+    const uint8_t address0 = Read(base++);
+    const uint8_t address1 = Read(base++);
     return (uint16_t) address0 | (uint16_t) ((uint16_t) address1 << 8);
 }
 uint16_t Addressing::INY(){
     // Post-indexed Indirect Addressing
     // 间接Y变址
-    uint8_t base = read(REG_PC++);
-    const uint8_t address0 = read(base++);
-    const uint8_t address1 = read(base++);
+    uint8_t base = Read(REG_PC++);
+    const uint8_t address0 = Read(base++);
+    const uint8_t address1 = Read(base++);
     return ((uint16_t) address0 | (uint16_t) ((uint16_t) address1 << 8)) + (uint16_t)REG_Y;
 }
 uint16_t Addressing::REL(){
     // Relative Addressing
     // 相对寻址
-    const uint8_t temp = read(REG_PC++);
+    const uint8_t temp = Read(REG_PC++);
     const uint16_t address =  REG_PC + (int8_t)temp;
     return address;
 }
@@ -97,7 +97,7 @@ uint16_t Addressing::REL(){
 // Operation
 void Operation::ADC(uint16_t address){
     // Add with carry
-    const uint8_t src = read(address);
+    const uint8_t src = Read(address);
     const uint16_t res16 = (uint16_t)REG_A + (uint16_t)src + (REG_CF ? 1 : 0);
     REG_CF_IF(res16 >> 8);
     const uint8_t res8 = (uint8_t)res16;
@@ -107,15 +107,15 @@ void Operation::ADC(uint16_t address){
 }
 void Operation::AND(uint16_t address){
     // "AND" memory with accumulator 
-    REG_A &= read(address);
+    REG_A &= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::ASL(uint16_t address){
     // Shift Left One Bit (Memory)
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     REG_CF_IF(temp >> 7);
     temp <<= 1;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 }
 void Operation::BCC(uint16_t address){
@@ -128,7 +128,7 @@ void Operation::BEQ(uint16_t address){
 }
 void Operation::BIT(uint16_t address){
     // BIT Test bits in memory with accumulator
-    const uint8_t value = read(address);
+    const uint8_t value = Read(address);
     REG_NF_IF((value >> 7) & 1);
     REG_VF_IF((value >> 6) & 1);
     REG_ZF_IF(!(REG_A & value));
@@ -180,29 +180,29 @@ void Operation::CLV(uint16_t address){
 }
 void Operation::CMP(uint16_t address){
     // Compare memory and accumulator
-    const uint16_t res = (uint16_t)REG_A - (uint16_t)read(address);
+    const uint16_t res = (uint16_t)REG_A - (uint16_t)Read(address);
     REG_CF_IF(!(res & (uint16_t)0x8000));
     CHECK_ZSFLAG((uint8_t)res);
 }
 void Operation::CPX(uint16_t address){
     // Compare Memory and Index X
-    const uint16_t res = (uint16_t)REG_X - (uint16_t)read(address);
+    const uint16_t res = (uint16_t)REG_X - (uint16_t)Read(address);
     REG_CF_IF(!(res & (uint16_t)0x8000));
     CHECK_ZSFLAG((uint8_t)res);
 
 }
 void Operation::CPY(uint16_t address){
     // Compare Memory and Index Y
-    const uint16_t res = (uint16_t)REG_Y - (uint16_t)read(address);
+    const uint16_t res = (uint16_t)REG_Y - (uint16_t)Read(address);
     REG_CF_IF(!(res & (uint16_t)0x8000));
     CHECK_ZSFLAG((uint8_t)res);
 
 }
 void Operation::DEC(uint16_t address){
     // DEX Decrement Memory by one
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     temp--;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 }
 void Operation::DEX(uint16_t address){
@@ -217,15 +217,15 @@ void Operation::DEY(uint16_t address){
 }
 void Operation::EOR(uint16_t address){
     // "Exclusive-Or" memory with accumulator
-    REG_A ^= read(address);
+    REG_A ^= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::INC(uint16_t address){
     // Increment Memory by One
     // Operation:  M + 1 -> M 
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     temp++;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 }
 void Operation::INX(uint16_t address){
@@ -252,25 +252,25 @@ void Operation::JSR(uint16_t address){
 }
 void Operation::LDA(uint16_t address){
     // Load A
-    REG_A = read(address);
+    REG_A = Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::LDX(uint16_t address){
     // Load X
-    REG_X = read(address);
+    REG_X = Read(address);
     CHECK_ZSFLAG(REG_X);
 }
 void Operation::LDY(uint16_t address){
     // Load Y
-    REG_Y = read(address);
+    REG_Y = Read(address);
     CHECK_ZSFLAG(REG_Y);
 }
 void Operation::LSR(uint16_t address){
     // Shift Right One Bit (Memory)
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     REG_CF_IF(temp & 1);
     temp >>= 1;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 }
 void Operation::NOP(uint16_t address){
@@ -278,7 +278,7 @@ void Operation::NOP(uint16_t address){
 }
 void Operation::ORA(uint16_t address){
     // "OR" memory with accumulator
-    REG_A |= read(address);
+    REG_A |= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::PHA(uint16_t address){
@@ -319,25 +319,25 @@ void Operation::RTI(uint16_t address){
 }
 void Operation::ROL(uint16_t address){
     //Rotate One Bit Left (Memory)
-    uint16_t result16 = read(address);
+    uint16_t result16 = Read(address);
     result16 <<= 1;
-    result16 |= ((uint16_t)REG_CF) >> (statusIndex::INDEX_C);
+    result16 |= ((uint16_t)REG_CF) >> (INDEX_C);
     REG_CF_IF(result16 & (uint16_t)0x100);
-    write(address, (uint8_t)result16);
+    Write(address, (uint8_t)result16);
     CHECK_ZSFLAG((uint8_t)result16);
 }
 void Operation::ROR(uint16_t address){
     // Rotate One Bit Right (Memory)
-    uint16_t result16 = read(address);
-    result16 |= ((uint16_t)REG_CF) << (8 - statusIndex::INDEX_C);
+    uint16_t result16 = Read(address);
+    result16 |= ((uint16_t)REG_CF) << (8 - INDEX_C);
     REG_CF_IF(result16 & 1);
     result16 >>= 1;
-    write(address, (uint8_t)result16);
+    Write(address, (uint8_t)result16);
     CHECK_ZSFLAG((uint8_t)result16);
 }
 void Operation::SBC(uint16_t address){
     // Subtract memory from accumulator with borrow
-    const uint8_t src = read(address);
+    const uint8_t src = Read(address);
     const uint16_t res16 = (uint16_t)REG_A - (uint16_t)src - (REG_CF ? 0 : 1);
     REG_CF_IF(!(res16 >> 8));
     const uint8_t res8 = (uint8_t)res16;
@@ -359,15 +359,15 @@ void Operation::SEI(uint16_t address){
 }
 void Operation::STA(uint16_t address){
     // Store A to address
-    write(address, REG_A);
+    Write(address, REG_A);
 }
 void Operation::STX(uint16_t address){
     // Store X To address
-    write(address, REG_X);
+    Write(address, REG_X);
 }
 void Operation::STY(uint16_t address){
     // Store Y To address
-    write(address, REG_Y);
+    Write(address, REG_Y);
 }
 void Operation::TAX(uint16_t address){
     // Transfer accumulator to index X
@@ -415,7 +415,7 @@ void Operation::ROLA(uint16_t address){
     //Rotate One Bit Left (Accumulator)
     uint16_t result16 = REG_A;
     result16 <<= 1;
-    result16 |= ((uint16_t)REG_CF) >> (statusIndex::INDEX_C);
+    result16 |= ((uint16_t)REG_CF) >> (INDEX_C);
     REG_CF_IF(result16 & (uint16_t)0x100);
     REG_A = (uint8_t)result16;
     CHECK_ZSFLAG(REG_A);
@@ -423,7 +423,7 @@ void Operation::ROLA(uint16_t address){
 void Operation::RORA(uint16_t address){
     // Rotate one bit right (accumulator) 
     uint16_t result16 = REG_A;
-    result16 |= ((uint16_t)REG_CF) << (8 - statusIndex::INDEX_C);
+    result16 |= ((uint16_t)REG_CF) << (8 - INDEX_C);
     REG_CF_IF(result16 & 1);
     result16 >>= 1;
     REG_A = (uint8_t)result16;
@@ -434,34 +434,34 @@ void Operation::RORA(uint16_t address){
 void Operation::DCP(uint16_t address){
     // Decrement memory then Compare with A 
     // DEC + CMP
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     temp--;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 
-    const uint16_t res = (uint16_t)REG_A - (uint16_t)read(address);
+    const uint16_t res = (uint16_t)REG_A - (uint16_t)Read(address);
     REG_CF_IF(!(res & (uint16_t)0x8000));
     CHECK_ZSFLAG((uint8_t)res);
 }
 void Operation::LAX(uint16_t address){
     // Load 'A' then Transfer X
-    REG_A = read(address);
+    REG_A = Read(address);
     REG_X = REG_A;
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::SAX(uint16_t address){
     // Store A 'And' X
-    write(address, REG_A & REG_X);
+    Write(address, REG_A & REG_X);
 }
 void Operation::ISB(uint16_t address){
     // Increment memory then Subtract with Carry
     // INC + SBC
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     temp++;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 
-    const uint8_t src = read(address);
+    const uint8_t src = Read(address);
     const uint16_t res16 = (uint16_t)REG_A - (uint16_t)src - (REG_CF ? 0 : 1);
     REG_CF_IF(!(res16 >> 8));
     const uint8_t res8 = (uint8_t)res16;
@@ -477,51 +477,51 @@ void Operation::ISC(uint16_t address){
 void Operation::SLO(uint16_t address){
     // Shift Left then 'Or'
     // ASL + ORA
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     REG_CF_IF(temp >> 7);
     temp <<= 1;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 
-    REG_A |= read(address);
+    REG_A |= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::RLA(uint16_t address){
     // Rotate Left then 'And'
     // ROL + AND
-    uint16_t result16 = read(address);
+    uint16_t result16 = Read(address);
     result16 <<= 1;
-    result16 |= ((uint16_t)REG_CF) >> (statusIndex::INDEX_C);
+    result16 |= ((uint16_t)REG_CF) >> (INDEX_C);
     REG_CF_IF(result16 & (uint16_t)0x100);
-    write(address, (uint8_t)result16);
+    Write(address, (uint8_t)result16);
     CHECK_ZSFLAG((uint8_t)result16);
 
-    REG_A &= read(address);
+    REG_A &= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::SRE(uint16_t address){
     // Shift Right then "Exclusive-Or"
     // LSR + EOR
-    uint8_t temp = read(address);
+    uint8_t temp = Read(address);
     REG_CF_IF(temp & 1);
     temp >>= 1;
-    write(address, temp);
+    Write(address, temp);
     CHECK_ZSFLAG(temp);
 
-    REG_A ^= read(address);
+    REG_A ^= Read(address);
     CHECK_ZSFLAG(REG_A);
 }
 void Operation::RRA(uint16_t address){
     // Rotate Right then Add with Carry
     // ROR + ADC
-    uint16_t result16 = read(address);
-    result16 |= ((uint16_t)REG_CF) << (8 - statusIndex::INDEX_C);
+    uint16_t result16 = Read(address);
+    result16 |= ((uint16_t)REG_CF) << (8 - INDEX_C);
     REG_CF_IF(result16 & 1);
     result16 >>= 1;
-    write(address, (uint8_t)result16);
+    Write(address, (uint8_t)result16);
     CHECK_ZSFLAG((uint8_t)result16);
 
-    const uint8_t src = read(address);
+    const uint8_t src = Read(address);
     const uint16_t res16 = (uint16_t)REG_A + (uint16_t)src + (REG_CF ? 1 : 0);
     REG_CF_IF(res16 >> 8);
     const uint8_t res8 = (uint8_t)res16;

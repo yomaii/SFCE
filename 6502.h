@@ -1,4 +1,5 @@
-#pragma once
+#ifndef SFCE_6502_H_
+#define SFCE_6502_H_
 
 #include "cpu.h"
 class Addressing : public Cpu{
@@ -100,8 +101,4 @@ public:
     void SRE(uint16_t);
 };
 
-
-
-
-
-
+#endif

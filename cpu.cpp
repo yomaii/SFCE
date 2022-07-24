@@ -1,12 +1,13 @@
 #include "cpu.h"
 
-#include <iostream>
+
 
 Cpu::Cpu(){}
 Cpu::Cpu(Famicom& fa){
-    famicom = &fa;
+    famicom_ = &fa;
 }
-uint8_t Cpu::read(uint16_t address){
+
+uint8_t Cpu::Read(uint16_t address){
     /*
     +---------+-------+-------+-----------------------+
     | Address | Size  | Flags | Description           |
@@ -27,106 +28,200 @@ uint8_t Cpu::read(uint16_t address){
     switch(address >> 13){
     case 0:
         // [$0000,$2000) RAM
-        return famicom->mainMemory[address & (uint16_t)0x07ff];
+        return famicom_->main_memory_[address & (uint16_t)0x07ff];
     case 1:
         // [$2000,$4000) not suported yet
-        assert(!"NOT IMPL");
+        return ReadPPU(address);
         return 0;
     case 2:
         // [$4000,$6000) not suported yet
-        assert(!"NOT IMPL");
+        if (address < 0x4020) return Read4020(address);
+        else assert(!"NOT IMPL");
         return 0;
     case 3:
         // [$6000,$8000) SRAM
-        return famicom->saveMemory[address & (uint16_t)0x1fff];
+        return famicom_->save_memory_[address & (uint16_t)0x1fff];
     case 4: case 5: case 6: case 7:
         // [$8000,$10000) PRG-ROM
-        return famicom->prgBanks[address >> 13][address & (uint16_t)0x1fff];
+        return famicom_->prg_banks_[address >> 13][address & (uint16_t)0x1fff];
     default:
         assert(!"invalid address");
     }
     return 0;
 
 }
-void Cpu::write(uint16_t address, uint8_t data){
+void Cpu::Write(uint16_t address, uint8_t data){
     switch(address >> 13){
     case 0:
         // [$0000,$2000) RAM
-        famicom->mainMemory[address & (uint16_t)0x07ff] = data;
+        famicom_->main_memory_[address & (uint16_t)0x07ff] = data;
         return;
     case 1:
         // [$2000,$4000) not suported yet
-        assert(!"NOT IMPL");
+        WritePPU(address, data);
         return;
     case 2:
         // [$4000,$6000) not suported yet
-        assert(!"NOT IMPL");
+        if (address < 0x4020) Write4020(address, data);
+        else assert(!"NOT IMPL");
         return;
     case 3:
         // [$6000,$8000) SRAM
-        famicom->saveMemory[address & (uint16_t)0x1fff] = data;
+        famicom_->save_memory_[address & (uint16_t)0x1fff] = data;
         return;
     case 4: case 5: case 6: case 7:
         // [$8000,$10000) PRG-ROM
         assert(!"WARNING: PRG-ROM");
-        famicom->prgBanks[address >> 13][address & (uint16_t)0x1fff] = data;
+        famicom_->prg_banks_[address >> 13][address & (uint16_t)0x1fff] = data;
         return;
     default:
         assert(!"invalid address");
     }
 }
 
-void Cpu::disassemblyPos(uint16_t address, char* buf){
-    enum {
-        OFFSET_M = DISASSEMBLY_BUF_LEN2 - DISASSEMBLY_BUF_LEN,
-        OFFSET = 8
-    };
-    static_assert(OFFSET < OFFSET_M, "LESS!");
-    memset(buf, ' ', OFFSET);
-    buf[0] = '$';
-    btoh(buf + 1, (uint8_t)(address >> 8));
-    btoh(buf + 3, (uint8_t)(address));
+uint8_t Cpu::ReadPPU(uint16_t address){
+    uint8_t data = 0x00;
+    PPU* ppu = &famicom_->ppu_;
+    switch (address & (uint16_t)0x7){
+    // address last 3 bits
+    case 0:
+        // 0x2000: Controller ($2000) > write only
+    case 1:
+        // 0x2001: Mask ($2001) > write only
+        assert(!"write only!");
+        break;
+    case 2:
+        // 0x2002: Status ($2002) < read only
+        data = ppu->status;
+        // clear VBlank
+        ppu->status &= ~(uint8_t)PPU2002_VBlank;
+        break;
+    case 3:
+        // 0x2003: OAM address port ($2003) > write only
+        assert(!"write only!");
+        break;
+    case 4:
+        // 0x2004: OAM data ($2004) <> read/write
+        data = ppu->sprites[ppu->oamaddr++];
+        break;
+    case 5:
+        // 0x2005: Scroll ($2005) >> write x2
+    case 6:
+        // 0x2006: Address ($2006) >> write x2
+        assert(!"write only!");
+        break;
+    case 7:
+        // 0x2007: Data ($2007) <> read/write
+        data = famicom_->ReadPPU(ppu->vramaddr);
+        ppu->vramaddr += (uint16_t)((ppu->ctrl & PPU2000_VINC32) ? 32 : 1);
+        break;
+    }
+    return data;
+}
+void Cpu::WritePPU(uint16_t address, uint8_t data){
+    PPU* ppu = &famicom_->ppu_;
+    switch (address & (uint16_t)0x7){
+    // address last 3 bits
+    case 0:
+        // 0x2000: Controller ($2000) > write only
+        ppu->ctrl = data;
+        break;
+    case 1:
+        // 0x2001: Mask ($2001) > write only
+        ppu->mask = data;
+        break;
+    case 2:
+        // 0x2002: Status ($2002) < read only
+        assert(!"read only!");
+        break;
+    case 3:
+        // 0x2003: OAM address port ($2003) > write only
+        ppu->oamaddr = data;
+        break;
+    case 4:
+        // 0x2004: OAM data ($2004) <> read/write
+        ppu->sprites[ppu->oamaddr++] = data;
+        break;
+    case 5:
+        // 0x2005: Scroll ($2005) >> write x2
+        ppu->scroll[ppu->writex2 & 1] = data;
+        ++ppu->writex2;
+        break;
+    case 6:
+        // 0x2006: Address ($2006) >> write x2
+        // 写入高字节
+        if (ppu->writex2 & 1) {
+            ppu->vramaddr = (ppu->vramaddr & (uint16_t)0xFF00) | (uint16_t)data;
+        }
+        // 写入低字节
+        else {
+            ppu->vramaddr = (ppu->vramaddr & (uint16_t)0x00FF) | ((uint16_t)data << 8);
+        }
+        ++ppu->writex2;
+        break;
+    case 7:
+        // 0x2007: Data ($2007) <> read/write
+        famicom_->WritePPU(ppu->vramaddr, data);
+        ppu->vramaddr += (uint16_t)((ppu->ctrl & PPU2000_VINC32) ? 32 : 1);
+        break;
+    }
+}
+uint8_t Cpu::Read4020(uint16_t address){
+    uint8_t data = 0;
+    switch (address & (uint16_t)0x1f)
+    {
+    case 0x16:
+        // controller#1
+        data = (famicom_->controller_states_+0)[famicom_->controller1_ & famicom_->controller_status_mask_];
+        ++famicom_->controller1_;
+        break;
+    case 0x17:
+        // controller#2
+        data = (famicom_->controller_states_+8)[famicom_->controller2_ & famicom_->controller_status_mask_];
+        ++famicom_->controller2_;
+        break;
+    }
+    return data;
+}
+void Cpu::Write4020(uint16_t address, uint8_t data){
+    switch (address & (uint16_t)0x1f)
+    {
+    case 0x16:
+        famicom_->controller_status_mask_ = (data & 1) ? 0x0 : 0x7;
+        if (data & 1) {
+            famicom_->controller1_ = 0;
+            famicom_->controller2_ = 0;
+        }
+        break;
+    }
+}
 
+
+#define fallthrough
+std::string Cpu::Disassembly(uint16_t address){
+    string res = "$";
+    res += btoh((uint8_t)(address >> 8));
+    res += btoh((uint8_t)(address));
+    res += "     ";
 
     Code6502 code;
     code.data = 0;
 
-    code.op = read(address);
-    code.a1 = read(address + 1);
-    code.a2 = read(address + 2);
 
-    disassembly(code, buf + OFFSET);
-}
-void Cpu::btoh(char o[], uint8_t b) {
-    o[0] = HEXDATA[b >> 4];
-    o[1] = HEXDATA[b & (uint8_t)0x0F];
-}
 
-void Cpu::btod(char o[], uint8_t b) {
-    const int8_t sb = (int8_t)b;
-    if (sb < 0) {
-        o[0] = '-';
-        b = -b;
-    }
-    else o[0] = '+';
-    o[1] = HEXDATA[(uint8_t)b / 100];
-    o[2] = HEXDATA[(uint8_t)b / 10 % 10];
-    o[3] = HEXDATA[(uint8_t)b % 10];
-}
-
-#define fallthrough
-void Cpu::disassembly(Code6502 code, char* buf){
-    enum {
-        NAME_FIRSH = 0,
-        ADDR_FIRSH = NAME_FIRSH + 4,
-        LEN = ADDR_FIRSH + 9
-    };
-    memset(buf, ' ', LEN); buf[LEN] = ';'; buf[LEN + 1] = 0;
-    static_assert(LEN + 1 < DISASSEMBLY_BUF_LEN, "");
+    code.op = Read(address);
+    code.a1 = Read(address + 1);
+    code.a2 = Read(address + 2);
     const struct OpName opname = OPNAMEDATA[code.op];
-    buf[NAME_FIRSH + 0] = opname.name[0];
-    buf[NAME_FIRSH + 1] = opname.name[1];
-    buf[NAME_FIRSH + 2] = opname.name[2];
+    string o(3,' ');
+    o[0] = opname.name[0];
+    o[1] = opname.name[1];
+    o[2] = opname.name[2];
+    res += o;
+    res += "    ";
+
+
+
     switch (opname.mode)
     {
     case AM_UNK:
@@ -136,13 +231,12 @@ void Cpu::disassembly(Code6502 code, char* buf){
         break;
     case AM_ACC:
         // XXX A   ;
-        buf[ADDR_FIRSH + 0] = 'A';
+        res += "A";
         break;
     case AM_IMM:
         // XXX #$AB
-        buf[ADDR_FIRSH + 0] = '#';
-        buf[ADDR_FIRSH + 1] = '$';
-        btoh(buf + ADDR_FIRSH + 2, code.a1);
+        res += "#$";
+        res += btoh(code.a1);
         break;
     case AM_ABS:
         // XXX $ABCD
@@ -153,12 +247,12 @@ void Cpu::disassembly(Code6502 code, char* buf){
     case AM_ABY:
         // XXX $ABCD, Y
         // REAL
-        buf[ADDR_FIRSH] = '$';
-        btoh(buf + ADDR_FIRSH + 1, code.a2);
-        btoh(buf + ADDR_FIRSH + 3, code.a1);
+        res += "$";
+        res += btoh(code.a2);
+        res += btoh(code.a1);
         if (opname.mode == AM_ABS) break;
-        buf[ADDR_FIRSH + 5] = ',';
-        buf[ADDR_FIRSH + 7] = opname.mode == AM_ABX ? 'X' : 'Y';
+        res += ",";
+        res += opname.mode == AM_ABX ? "X" : "Y";
         break;
     case AM_ZPG:
         // XXX $AB
@@ -169,51 +263,63 @@ void Cpu::disassembly(Code6502 code, char* buf){
     case AM_ZPY:
         // XXX $AB, Y
         // REAL
-        buf[ADDR_FIRSH] = '$';
-        btoh(buf + ADDR_FIRSH + 1, code.a1);
+        res += "$";
+        res += btoh(code.a1);
         if (opname.mode == AM_ZPG) break;
-        buf[ADDR_FIRSH + 3] = ',';
-        buf[ADDR_FIRSH + 5] = opname.mode == AM_ABX ? 'X' : 'Y';
+        res += ",";
+        res += opname.mode == AM_ABX ? "X" : "Y";
         break;
     case AM_INX:
         // XXX ($AB, X)
-        buf[ADDR_FIRSH + 0] = '(';
-        buf[ADDR_FIRSH + 1] = '$';
-        btoh(buf + ADDR_FIRSH + 2, code.a1);
-        buf[ADDR_FIRSH + 4] = ',';
-        buf[ADDR_FIRSH + 6] = 'X';
-        buf[ADDR_FIRSH + 7] = ')';
+        res += "($";
+        res += btoh(code.a1);
+        res += ",X)";
         break;
     case AM_INY:
         // XXX ($AB), Y
-        buf[ADDR_FIRSH + 0] = '(';
-        buf[ADDR_FIRSH + 1] = '$';
-        btoh(buf + ADDR_FIRSH + 2, code.a1);
-        buf[ADDR_FIRSH + 4] = ')';
-        buf[ADDR_FIRSH + 5] = ',';
-        buf[ADDR_FIRSH + 7] = 'Y';
+        res += "($";
+        res += btoh(code.a1);
+        res += ",Y)";
         break;
     case AM_IND:
         // XXX ($ABCD)
-        buf[ADDR_FIRSH + 0] = '(';
-        buf[ADDR_FIRSH + 1] = '$';
-        btoh(buf + ADDR_FIRSH + 2, code.a2);
-        btoh(buf + ADDR_FIRSH + 4, code.a1);
-        buf[ADDR_FIRSH + 6] = ')';
+        res += "($";
+        res += btoh(code.a2);
+        res += btoh(code.a1);
+        res += ")";
         break;
     case AM_REL:
         // XXX $AB(-085)
         // XXX $ABCD
-        buf[ADDR_FIRSH + 0] = '$';
-        //const uint16_t target = base + int8_t(data.a1);
-        //btoh(buf + ADDR_FIRSH + 1, uint8_t(target >> 8));
-        //btoh(buf + ADDR_FIRSH + 3, uint8_t(target & 0xFF));
-        btoh(buf + ADDR_FIRSH + 1, code.a1);
-        buf[ADDR_FIRSH + 3] = '(';
-        btod(buf + ADDR_FIRSH + 4, code.a1);
-        buf[ADDR_FIRSH + 8] = ')';
+        res += "$a";
+        res += btoh(code.a1);
+        res += "(";
+        res += btod(code.a1);
+        res += ")";
         break;
     }
+    while(res.size() < 32) res += " ";
+    return res;
+}
+string Cpu::btoh(uint8_t b) {
+    string o(2,' ');
+    o[0] = HEXDATA[b >> 4];
+    o[1] = HEXDATA[b & (uint8_t)0x0F];
+    return o;
+}
+
+string Cpu::btod(uint8_t b) {
+    string o(4,' ');
+    const int8_t sb = (int8_t)b;
+    if (sb < 0) {
+        o[0] = '-';
+        b = -b;
+    }
+    else o[0] = '+';
+    o[1] = HEXDATA[(uint8_t)b / 100];
+    o[2] = HEXDATA[(uint8_t)b / 10 % 10];
+    o[3] = HEXDATA[(uint8_t)b % 10];
+    return o;
 }
 
 // 宏定义
@@ -225,35 +331,36 @@ void Cpu::disassembly(Code6502 code, char* buf){
 case 0x##n:\
 {           \
     const uint16_t address = addressing.a();\
-    printf("address: %X OP: %X\n", address, opcode);\
     operation.o(address);\
     break;\
 }
-
-void Cpu::log(){
+    //printf("address: %X OP: %X\n", address, opcode);
+void Cpu::Log(){
     static int line = 0;
     line++;
-    char buf[DISASSEMBLY_BUF_LEN2];
-    const uint16_t pc = famicom->registers.programCounter;
-    disassemblyPos(pc, buf);
+    const uint16_t pc = famicom_->registers_.programCounter;
+
+    auto buf = Disassembly(pc);
+
+    
     printf(
         "%4d - %s   A:%02X X:%02X Y:%02X P:%02X SP:%02X\n",
-        line, buf,
-        (int)famicom->registers.accumulator,
-        (int)famicom->registers.xIndex,
-        (int)famicom->registers.yIndex,
-        (int)famicom->registers.status,
-        (int)famicom->registers.stackPointer
+        line, buf.c_str(),
+        (int)famicom_->registers_.accumulator,
+        (int)famicom_->registers_.xIndex,
+        (int)famicom_->registers_.yIndex,
+        (int)famicom_->registers_.status,
+        (int)famicom_->registers_.stackPointer
     );
 }
 
 
 
-void Cpu::executeOne(){
-    log();
-    const uint8_t opcode = read(REG_PC++);
-    Addressing addressing(famicom);
-    Operation operation(famicom);
+void Cpu::ExecuteOne(){
+    Log();
+    const uint8_t opcode = Read(REG_PC++);
+    Addressing addressing(famicom_);
+    Operation operation(famicom_);
     switch(opcode){
         OP(4C, ABS, JMP)
         OP(A2, IMM, LDX)
@@ -487,3 +594,14 @@ void Cpu::executeOne(){
     
 }
 
+void Cpu::NMI(){
+    const uint8_t pch = (uint8_t)((REG_PC) >> 8);
+    const uint8_t pcl = (uint8_t)REG_PC;
+    PUSH(pch);
+    PUSH(pcl);
+    PUSH(REG_P | (uint8_t)(FLAG_R));
+    REG_IF_SE;
+    const uint8_t pcl2 = Read(CPU_NMI + 0);
+    const uint8_t pch2 = Read(CPU_NMI + 1);
+    famicom_->registers_.programCounter = (uint16_t)pcl2 | (uint16_t)pch2 << 8;
+}
